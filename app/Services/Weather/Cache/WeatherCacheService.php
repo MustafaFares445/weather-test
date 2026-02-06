@@ -31,17 +31,20 @@ class WeatherCacheService extends BaseWeatherCacheService
 
     public function store(WeatherData $data): void
     {
+        $payload = $data->toArray();
+        $payload['fetched_at'] = $data->fetched_at->format('Y-m-d H:i:s');
+
         // Store in fresh cache with TTL
         Cache::put(
             $this->getFreshKey($data->city),
-            $data->toArray(),
+            $payload,
             $this->freshTtl,
         );
 
         // Store in stale cache (indefinitely or with configured TTL)
-        $this->staleTtl ?
-            Cache::forever($this->getStaleKey($data->city), $data->toArray()) :
-            Cache::put($this->getStaleKey($data->city), $data->toArray(), $this->staleTtl);
+        $this->staleTtl === null ?
+            Cache::forever($this->getStaleKey($data->city), $payload) :
+            Cache::put($this->getStaleKey($data->city), $payload, $this->staleTtl);
     }
 
     public function forget(string $city): void
