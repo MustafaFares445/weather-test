@@ -44,23 +44,5 @@ class WeatherData extends Data
     {
         return round($unit->convertFromCelsius($this->temperature), 1);
     }
-
-    /**
-     * Transform to API response format with specified unit.
-     */
-    public function toApiResponse(TemperatureUnit $unit): array
-    {
-        return [
-            'status' => 'success',
-            'data' => [
-                'city' => $this->city,
-                'temperature' => $this->getTemperatureInUnit($unit),
-                'description' => $this->description,
-                'source' => $this->source,
-                'fetched_at' => $this->fetched_at->format('Y-m-d H:i:s'),
-            ],
-            'unit' => $unit->value,
-        ];
-    }
 }
 
