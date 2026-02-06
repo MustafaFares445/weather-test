@@ -1,19 +1,21 @@
 <?php
 
 use App\Data\WeatherData;
-use App\Exceptions\WeatherProviderException;
 use App\Http\Controllers\WeatherController;
+use App\Jobs\RefreshWeatherCacheJob;
 use App\Services\Weather\Cache\WeatherCacheService;
-use App\Services\Weather\Providers\BaseWeatherProviderService;
+use App\Services\Weather\HealthRegistry\WeatherProviderPoolService;
 use App\Services\Weather\WeatherService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Route;
 
 beforeEach(function () {
     Route::get('/weather', WeatherController::class);
 
     $cache = $this->createMock(WeatherCacheService::class);
-    $this->app->instance(WeatherService::class, new WeatherService([], $cache));
+    $providerPool = $this->createMock(WeatherProviderPoolService::class);
+    $this->app->instance(WeatherService::class, new WeatherService($cache, $providerPool));
 });
 
 it('validates missing city', function () {
@@ -44,19 +46,16 @@ it('returns weather resource on success', function () {
         ->method('getFresh')
         ->with('Paris')
         ->willReturn(null);
-    $cache->expects($this->once())
-        ->method('store')
-        ->with($data);
     $cache->expects($this->never())->method('getStale');
 
-    $provider = $this->createMock(BaseWeatherProviderService::class);
-    $provider->expects($this->once())
-        ->method('fetch')
-        ->with('Paris')
+    $providerPool = $this->createMock(WeatherProviderPoolService::class);
+    $providerPool->expects($this->once())
+        ->method('fetchFirstSuccessful')
         ->willReturn($data);
-    $provider->method('getName')->willReturn('OpenWeather');
 
-    $service = new WeatherService([$provider], $cache);
+    Bus::fake();
+
+    $service = new WeatherService($cache, $providerPool);
     $this->app->instance(WeatherService::class, $service);
 
     $response = $this->getJson('/weather?city=Paris');
@@ -72,6 +71,8 @@ it('returns weather resource on success', function () {
             'fetchedAt' => '2025-01-01 10:00:00',
         ],
     ]);
+
+    Bus::assertDispatched(RefreshWeatherCacheJob::class);
 });
 
 it('returns cached response when service uses cache', function () {
@@ -91,10 +92,10 @@ it('returns cached response when service uses cache', function () {
     $cache->expects($this->never())->method('getStale');
     $cache->expects($this->never())->method('store');
 
-    $provider = $this->createMock(BaseWeatherProviderService::class);
-    $provider->expects($this->never())->method('fetch');
+    $providerPool = $this->createMock(WeatherProviderPoolService::class);
+    $providerPool->expects($this->never())->method('fetchFirstSuccessful');
 
-    $service = new WeatherService([$provider], $cache);
+    $service = new WeatherService($cache, $providerPool);
     $this->app->instance(WeatherService::class, $service);
 
     $response = $this->getJson('/weather?city=Berlin');
@@ -120,14 +121,12 @@ it('renders 503 when all providers fail', function () {
         ->with('Paris')
         ->willReturn(null);
 
-    $provider = $this->createMock(BaseWeatherProviderService::class);
-    $provider->expects($this->once())
-        ->method('fetch')
-        ->with('Paris')
-        ->willThrowException(WeatherProviderException::httpError('Provider', 500));
-    $provider->method('getName')->willReturn('Provider');
+    $providerPool = $this->createMock(WeatherProviderPoolService::class);
+    $providerPool->expects($this->once())
+        ->method('fetchFirstSuccessful')
+        ->willReturn(null);
 
-    $service = new WeatherService([$provider], $cache);
+    $service = new WeatherService($cache, $providerPool);
     $this->app->instance(WeatherService::class, $service);
 
     $response = $this->getJson('/weather?city=Paris');

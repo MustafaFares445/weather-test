@@ -52,5 +52,18 @@ return [
         'stale_ttl' => null, // null = forever (indefinite)
         'prefix' => 'weather',
     ],
-];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Provider Health (Circuit-Breaker Lite)
+    |--------------------------------------------------------------------------
+    |
+    | Controls how provider failure counters are tracked to short-circuit
+    | unhealthy providers for a cooling-off period.
+    |
+    */
+    'provider_health' => [
+        'failure_threshold' => env('WEATHER_PROVIDER_FAILURE_THRESHOLD', 3),
+        'ttl' => env('WEATHER_PROVIDER_HEALTH_TTL', 300),
+    ],
+];

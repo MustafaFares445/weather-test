@@ -3,14 +3,15 @@
 namespace App\Exceptions;
 
 use Exception;
+use Throwable;
 
 class WeatherProviderException extends Exception
 {
     public function __construct(
-        string $message,
+        string                 $message,
         public readonly string $provider,
-        public readonly ?int $statusCode = null,
-        ?\Throwable $previous = null,
+        public readonly ?int   $statusCode = null,
+        ?Throwable             $previous = null,
     ) {
         parent::__construct($message, 0, $previous);
     }
@@ -30,7 +31,7 @@ class WeatherProviderException extends Exception
     /**
      * Create exception for connection error.
      */
-    public static function connectionError(string $provider, \Throwable $previous): self
+    public static function connectionError(string $provider, Throwable $previous): self
     {
         return new self(
             message: "Failed to connect to provider: {$previous->getMessage()}",

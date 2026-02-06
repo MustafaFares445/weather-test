@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Services\Weather\Cache\WeatherCacheService;
+use App\Services\Weather\HealthRegistry\ProviderHealthRegistryService;
+use App\Services\Weather\HealthRegistry\WeatherProviderPoolService;
 use App\Services\Weather\Providers\OpenWeatherProviderService;
 use App\Services\Weather\Providers\WeatherStackProviderService;
 use App\Services\Weather\WeatherService;
@@ -21,11 +23,19 @@ class WeatherServiceProvider extends ServiceProvider
         ], 'weather.providers');
 
         $this->app->singleton(WeatherCacheService::class);
+        $this->app->singleton(ProviderHealthRegistryService::class);
+
+        $this->app->singleton(WeatherProviderPoolService::class, function ($app) {
+            return new WeatherProviderPoolService(
+                providers: $app->tagged('weather.providers'),
+                healthRegistry: $app->make(ProviderHealthRegistryService::class),
+            );
+        });
 
         $this->app->singleton(WeatherService::class, function ($app) {
             return new WeatherService(
-                providers: $app->tagged('weather.providers'),
-                cacheService: $app->make(WeatherCacheService::class),
+                cache: $app->make(WeatherCacheService::class),
+                providerPool: $app->make(WeatherProviderPoolService::class),
             );
         });
     }
@@ -42,6 +52,8 @@ class WeatherServiceProvider extends ServiceProvider
         return [
             OpenWeatherProviderService::class,
             WeatherStackProviderService::class,
+            WeatherProviderPoolService::class,
+            ProviderHealthRegistryService::class,
         ];
     }
 }

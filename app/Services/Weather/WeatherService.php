@@ -5,26 +5,24 @@ namespace App\Services\Weather;
 use App\Data\WeatherData;
 use App\Data\WeatherRequestData;
 use App\Exceptions\AllProvidersFailedException;
-use App\Exceptions\WeatherProviderException;
-use App\Http\Resources\WeatherResource;
+use App\Jobs\RefreshWeatherCacheJob;
 use App\Services\Weather\Cache\WeatherCacheService;
-use App\Services\Weather\Providers\BaseWeatherProviderService;
+use App\Services\Weather\HealthRegistry\WeatherProviderPoolService;
 use Illuminate\Support\Facades\Log;
+use Psr\SimpleCache\InvalidArgumentException;
 
 final readonly class WeatherService
 {
-    /**
-     * @param iterable<BaseWeatherProviderService> $providers
-     */
     public function __construct(
-        private iterable $providers,
-        private WeatherCacheService $cacheService
-    ){}
+        private WeatherCacheService        $cache,
+        private WeatherProviderPoolService $providerPool,
+    ) {}
 
     /**
      *  Get weather data for a city with fallback logic.
      *
      * @throws AllProvidersFailedException
+     * @throws InvalidArgumentException
      *  1. Check fresh cache first
      *  2. Try each provider in order until one succeeds
      *  3. Fall back to stale cache if all providers fail
@@ -33,31 +31,23 @@ final readonly class WeatherService
     public function getWeatherData(WeatherRequestData $requestData) : WeatherData
     {
         // 1. Check fresh cache first
-        $freshData = $this->cacheService->getFresh($requestData->city);
+        $freshData = $this->cache->getFresh($requestData->city);
         if ($freshData){
             return  $freshData;
         }
 
-        // 2. Try providers in order
-        foreach ($this->providers as $provider){
-            try {
-                $weatherData = $provider->fetch($requestData->city);
-                $this->cacheService->store($weatherData);
+        // 2. Try providers via pool
+        $weatherData = $this->providerPool->fetchFirstSuccessful($requestData);
+        if ($weatherData) {
+            dispatch(new RefreshWeatherCacheJob($weatherData));
 
-                return $weatherData;
-            }catch (WeatherProviderException $e){
-                Log::warning('Weather provider failed', [
-                    'provider' => $provider->getName(),
-                    'city' => $requestData->city,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            return $weatherData;
         }
 
         // 3. Fallback to stale cache
-        $staelData = $this->cacheService->getStale($requestData->city);
-        if ($staelData) {
-            return $staelData;
+        $staleData = $this->cache->getStale($requestData->city);
+        if ($staleData) {
+            return $staleData;
         }
 
         // 4. No data available at all
