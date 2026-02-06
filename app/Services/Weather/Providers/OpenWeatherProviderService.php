@@ -5,33 +5,29 @@ namespace App\Services\Weather\Providers;
 use App\Data\WeatherData;
 use App\Exceptions\WeatherProviderException;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 
-class OpenWeatherProviderService extends BaseWeatherProviderService
+/**
+ * OpenWeather provider implementation.
+ */
+final class OpenWeatherProviderService extends BaseWeatherProviderService
 {
-    private string $baseUrl;
-    private string $apiKey;
-    private int $timeout;
-
     public function __construct()
     {
-        $this->baseUrl = config('weather.providers.openweather.base_url');
-        $this->apiKey = config('weather.providers.openweather.api_key');
-        $this->timeout = config('weather.http.timeout', 5);
+        parent::__construct(
+            baseUrl: config('weather.providers.openweather.base_url'),
+            apiKey: config('weather.providers.openweather.api_key'),
+            timeout: config('weather.http.timeout', 5),
+        );
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function fetch(string $city): WeatherData
     {
         try {
-            $response = Http::timeout($this->timeout)
-                ->get("{$this->baseUrl}/weather", [
-                    'q' => $city,
-                    'appid' => $this->apiKey,
-                    'units' => 'metric', // Always fetch in Celsius
-                ]);
+            $response = $this->http()->get('/weather', [
+                'q'     => $city,
+                'appid' => $this->apiKey,
+                'units' => 'metric',
+            ]);
 
             if ($response->failed()) {
                 throw WeatherProviderException::httpError(
@@ -50,16 +46,12 @@ class OpenWeatherProviderService extends BaseWeatherProviderService
                 source: $this->getName(),
             );
         } catch (ConnectionException $e) {
-            throw WeatherProviderException::connectionError($this->getName(), $e);
+            $this->handleConnectionException($e);
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getName(): string
     {
         return 'OpenWeather';
     }
 }
-
