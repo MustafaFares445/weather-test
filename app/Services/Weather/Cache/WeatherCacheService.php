@@ -18,25 +18,15 @@ class WeatherCacheService extends BaseWeatherCacheService
     public function getFresh(string $city): ?WeatherData
     {
         $key = $this->getFreshKey($city);
-        $cashed = Cache::get($key);
 
-        if (!$cashed) {
-            return null;
-        }
-
-        return WeatherData::from($cashed);
+        return $this->getCache($key);
     }
 
     public function getStale(string $city): ?WeatherData
     {
         $key = $this->getStaleKey($city);
-        $cached = Cache::get($key);
 
-        if (!$cached) {
-            return null;
-        }
-
-        return WeatherData::from($cached);
+        return $this->getCache($key);
     }
 
     public function store(WeatherData $data): void

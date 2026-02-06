@@ -3,6 +3,7 @@
 namespace App\Services\Weather\Cache;
 
 use App\Data\WeatherData;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 abstract class BaseWeatherCacheService
@@ -31,6 +32,16 @@ abstract class BaseWeatherCacheService
      */
     abstract public function forget(string $city): void;
 
+    protected function getCache(string $key): WeatherData|null
+    {
+        $cashed = Cache::get($key);
+
+        if (!$cashed) {
+            return null;
+        }
+
+        return WeatherData::from($cashed);
+    }
 
     /**
      * Generate the fresh cache key for a city.
